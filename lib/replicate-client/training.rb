@@ -168,6 +168,11 @@ module ReplicateClient
     # @return [Hash]
     attr_accessor :urls
 
+    # The output data generated during the training process.
+    #
+    # @return [Hash, nil]
+    attr_accessor :output
+
     # Initialize a new training instance.
     #
     # @param attributes [Hash] The attributes of the training.
@@ -245,6 +250,7 @@ module ReplicateClient
       @logs = attributes["logs"]
       @error = attributes["error"]
       @urls = attributes["urls"]
+      @output = attributes["output"]
     end
   end
 end
