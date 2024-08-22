@@ -190,6 +190,11 @@ module ReplicateClient
     # @return [Hash]
     attr_accessor :urls
 
+    # The logs for the prediction.
+    #
+    # @return [String]
+    attr_accessor :logs
+
     def initialize(attributes)
       reset_attributes(attributes)
     end
@@ -279,6 +284,7 @@ module ReplicateClient
       @completed_at = attributes["completed_at"]
       @metrics = attributes["metrics"]
       @urls = attributes["urls"]
+      @logs = attributes["logs"]
 
       @model = nil
       @version = nil
