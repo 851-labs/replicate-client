@@ -10,6 +10,7 @@ require_relative "replicate-client/model"
 require_relative "replicate-client/hardware"
 require_relative "replicate-client/training"
 require_relative "replicate-client/deployment"
+require_relative "replicate-client/webhook"
 
 module ReplicateClient
   class Error < StandardError; end

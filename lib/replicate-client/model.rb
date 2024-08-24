@@ -281,7 +281,7 @@ module ReplicateClient
     # @return [void]
     def reload!
       attributes = ReplicateClient.client.get(path)
-      reset_attributes(attributes)
+      reset_attributes(attributes, version_id: version_id)
     end
 
     # Check if the model is public.

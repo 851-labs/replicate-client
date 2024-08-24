@@ -36,8 +36,6 @@ module ReplicateClient
     #
     # @return [Hash] The response from the API.
     def get(path)
-      puts "GET #{path}"
-
       response = connection.get(build_url(path)) do |request|
         request.headers["Authorization"] = "Bearer #{@configuration.access_token}"
         request.headers["Content-Type"] = "application/json"
