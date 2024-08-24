@@ -125,12 +125,12 @@ module ReplicateClient
     # The full model name in the format "owner/name".
     #
     # @return [String]
-    attr_accessor :model
+    attr_accessor :model_full_name
 
     # The version ID of the model being trained.
     #
     # @return [String]
-    attr_accessor :version
+    attr_accessor :version_id
 
     # The input data provided for the training.
     #
@@ -150,8 +150,13 @@ module ReplicateClient
 
     # The timestamp when the training was completed.
     #
-    # @return [String, nil]
+    # @return [Time, nil]
     attr_accessor :completed_at
+
+    # The timestamp when the training was started.
+    #
+    # @return [Time, nil]
+    attr_accessor :started_at
 
     # The logs generated during the training process.
     #
@@ -172,6 +177,11 @@ module ReplicateClient
     #
     # @return [Hash, nil]
     attr_accessor :output
+
+    # The metrics generated during the training process.
+    #
+    # @return [Hash, nil]
+    attr_accessor :metrics
 
     # Initialize a new training instance.
     #
@@ -232,6 +242,20 @@ module ReplicateClient
       reset_attributes(attributes)
     end
 
+    # The model instance of the training.
+    #
+    # @return [ReplicateClient::Model]
+    def model
+      @model ||= ReplicateClient::Model.find(model_full_name, version_id: version_id)
+    end
+
+    # The version instance of the training.
+    #
+    # @return [ReplicateClient::Model::Version]
+    def version
+      @version ||= model.version
+    end
+
     private
 
     # Set the attributes of the training.
@@ -241,8 +265,8 @@ module ReplicateClient
     # @return [void]
     def reset_attributes(attributes)
       @id = attributes["id"]
-      @model = attributes["model"]
-      @version = attributes["version"]
+      @model_full_name = attributes["model"]
+      @version_id = attributes["version"]
       @input = attributes["input"]
       @status = attributes["status"]
       @created_at = attributes["created_at"]
@@ -251,6 +275,11 @@ module ReplicateClient
       @error = attributes["error"]
       @urls = attributes["urls"]
       @output = attributes["output"]
+      @started_at = attributes["started_at"]
+      @metrics = attributes["metrics"]
+
+      @model = nil
+      @version = nil
     end
   end
 end
