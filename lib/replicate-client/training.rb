@@ -42,11 +42,11 @@ module ReplicateClient
       # @param destination [ReplicateClient::Model, String] The destination model instance or string in "owner/name"
       # format.
       # @param input [Hash] The input data for the training.
-      # @param webhook [String, nil] A URL to receive webhook notifications.
+      # @param webhook_url [String, nil] A URL to receive webhook notifications.
       # @param webhook_events_filter [Array, nil] The events to trigger webhook requests.
       #
       # @return [ReplicateClient::Training]
-      def create!(owner:, name:, version:, destination:, input:, webhook: nil, webhook_events_filter: nil)
+      def create!(owner:, name:, version:, destination:, input:, webhook_url: nil, webhook_events_filter: nil)
         destination_str = destination.is_a?(ReplicateClient::Model) ? destination.full_name : destination
         version_id = version.is_a?(ReplicateClient::Model::Version) ? version.id : version
 
@@ -54,7 +54,7 @@ module ReplicateClient
         body = {
           destination: destination_str,
           input: input,
-          webhook: webhook,
+          webhook: webhook_url || ReplicateClient.configuration.webhook_url,
           webhook_events_filter: webhook_events_filter
         }
 
@@ -67,11 +67,11 @@ module ReplicateClient
       # @param model [ReplicateClient::Model, String] The model instance or a string representing the model ID.
       # @param destination [ReplicateClient::Model, String] The destination model or full name in "owner/name" format.
       # @param input [Hash] The input data for the training.
-      # @param webhook [String, nil] A URL to receive webhook notifications.
+      # @param webhook_url [String, nil] A URL to receive webhook notifications.
       # @param webhook_events_filter [Array, nil] The events to trigger webhook requests.
       #
       # @return [ReplicateClient::Training]
-      def create_for_model!(model:, destination:, input:, webhook: nil, webhook_events_filter: nil)
+      def create_for_model!(model:, destination:, input:, webhook_url: nil, webhook_events_filter: nil)
         model_instance = model.is_a?(ReplicateClient::Model) ? model : ReplicateClient::Model.find(model)
         raise ArgumentError, "Invalid model" unless model_instance
 
@@ -81,7 +81,7 @@ module ReplicateClient
           version: model_instance.version_id,
           destination: destination,
           input: input,
-          webhook: webhook,
+          webhook: webhook_url || ReplicateClient.configuration.webhook_url,
           webhook_events_filter: webhook_events_filter
         )
       end
