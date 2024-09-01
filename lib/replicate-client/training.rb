@@ -81,7 +81,7 @@ module ReplicateClient
           version: model_instance.version_id,
           destination: destination,
           input: input,
-          webhook: webhook_url || ReplicateClient.configuration.webhook_url,
+          webhook_url: webhook_url || ReplicateClient.configuration.webhook_url,
           webhook_events_filter: webhook_events_filter
         )
       end
