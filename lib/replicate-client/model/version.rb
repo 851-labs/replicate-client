@@ -127,6 +127,37 @@ module ReplicateClient
           webhook_events_filter: webhook_events_filter
         )
       end
+
+      # Get the prediction input schema from the openapi schema.
+      #
+      # @return [Hash] The prediction input schema.
+      def prediction_input_schema
+        resolve_ref(openapi_schema.dig("components", "schemas", "PredictionRequest", "properties", "input"))
+      end
+
+      # Get the training input schema from the openapi schema.
+      #
+      # @return [Hash] The training input schema.
+      def training_input_schema
+        resolve_ref(openapi_schema.dig("components", "schemas", "TrainingRequest", "properties", "input"))
+      end
+
+      private
+
+      # Resolve a reference in the openapi schema.
+      #
+      # @param schema [Hash] The schema to resolve.
+      #
+      # @return [Hash] The resolved schema.
+      def resolve_ref(schema)
+        if schema.is_a?(Hash) && schema["$ref"]
+          ref_path = schema["$ref"].split("/").drop(1)
+          resolved_schema = openapi_schema.dig(*ref_path)
+          resolve_ref(resolved_schema)
+        else
+          schema
+        end
+      end
     end
   end
 end
