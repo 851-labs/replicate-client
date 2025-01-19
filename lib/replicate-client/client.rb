@@ -15,13 +15,15 @@ module ReplicateClient
     #
     # @param path [String] The path to the API endpoint.
     # @param payload [Hash] The payload to send to the API.
+    # @param headers [Hash] The headers to send to the API.
     #
     # @return [Hash] The response from the API.
-    def post(path, payload)
+    def post(path, payload, headers: {})
       response = connection.post(build_url(path)) do |request|
         request.headers["Authorization"] = "Bearer #{@configuration.access_token}"
         request.headers["Content-Type"] = "application/json"
         request.headers["Accept"] = "application/json"
+        request.headers.merge!(headers)
         request.body = payload.compact.to_json
       end
 

@@ -19,9 +19,10 @@ module ReplicateClient
       # @param input [Hash] The input data for the prediction.
       # @param webhook_url [String] The URL to send webhook events to.
       # @param webhook_events_filter [Array<Symbol>] The events to send to the webhook.
+      # @param sync [Boolean] Whether to wait for the prediction to complete.
       #
       # @return [ReplicateClient::Prediction]
-      def create!(version:, input:, webhook_url: nil, webhook_events_filter: nil)
+      def create!(version:, input:, webhook_url: nil, webhook_events_filter: nil, sync: false)
         args = {
           version: version.is_a?(Model::Version) ? version.id : version,
           input: input,
@@ -29,7 +30,9 @@ module ReplicateClient
           webhook_events_filter: webhook_events_filter&.map(&:to_s)
         }
 
-        prediction = ReplicateClient.client.post(INDEX_PATH, args)
+        headers = sync ? { "Prefer" => 'wait' } : {}
+
+        prediction = ReplicateClient.client.post(INDEX_PATH, args, headers:)
 
         new(prediction)
       end
@@ -40,16 +43,19 @@ module ReplicateClient
       # @param input [Hash] The input data for the prediction.
       # @param webhook_url [String] The URL to send webhook events to.
       # @param webhook_events_filter [Array<Symbol>] The events to send to the webhook.
+      # @param sync [Boolean] Whether to wait for the prediction to complete.
       #
       # @return [ReplicateClient::Prediction]
-      def create_for_deployment!(deployment:, input:, webhook_url: nil, webhook_events_filter: nil)
+      def create_for_deployment!(deployment:, input:, webhook_url: nil, webhook_events_filter: nil, sync: false)
         args = {
           input: input,
           webhook: webhook_url || ReplicateClient.configuration.webhook_url,
           webhook_events_filter: webhook_events_filter&.map(&:to_s)
         }
 
-        prediction = ReplicateClient.client.post("#{deployment.path}#{INDEX_PATH}", args)
+        headers = sync ? { "Prefer" => 'wait' } : {}
+
+        prediction = ReplicateClient.client.post("#{deployment.path}#{INDEX_PATH}", args, headers:)
 
         new(prediction)
       end
@@ -60,9 +66,10 @@ module ReplicateClient
       # @param input [Hash] The input data for the prediction.
       # @param webhook_url [String] The URL to send webhook events to.
       # @param webhook_events_filter [Array<Symbol>] The events to send to the webhook.
+      # @param sync [Boolean] Whether to wait for the prediction to complete.
       #
       # @return [ReplicateClient::Prediction]
-      def create_for_official_model!(model:, input:, webhook_url: nil, webhook_events_filter: nil)
+      def create_for_official_model!(model:, input:, webhook_url: nil, webhook_events_filter: nil, sync: false)
         model_path = model.is_a?(Model) ? model.path : Model.build_path(**Model.parse_model_name(model))
 
         args = {
@@ -71,7 +78,9 @@ module ReplicateClient
           webhook_events_filter: webhook_events_filter&.map(&:to_s)
         }
 
-        prediction = ReplicateClient.client.post("#{model_path}#{INDEX_PATH}", args)
+        headers = sync ? { "Prefer" => 'wait' } : {}
+
+        prediction = ReplicateClient.client.post("#{model_path}#{INDEX_PATH}", args, headers:)
 
         new(prediction)
       end
