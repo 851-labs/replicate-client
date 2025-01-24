@@ -30,7 +30,7 @@ module ReplicateClient
           webhook_events_filter: webhook_events_filter&.map(&:to_s)
         }
 
-        headers = sync ? { "Prefer" => 'wait' } : {}
+        headers = sync ? { "Prefer" => "wait" } : {}
 
         prediction = ReplicateClient.client.post(INDEX_PATH, args, headers:)
 
@@ -53,9 +53,11 @@ module ReplicateClient
           webhook_events_filter: webhook_events_filter&.map(&:to_s)
         }
 
-        headers = sync ? { "Prefer" => 'wait' } : {}
+        headers = sync ? { "Prefer" => "wait" } : {}
 
-        prediction = ReplicateClient.client.post("#{deployment.path}#{INDEX_PATH}", args, headers:)
+        deployment_path = deployment.is_a?(Deployment) ? deployment.path : "#{Deployment::INDEX_PATH}/#{deployment}"
+
+        prediction = ReplicateClient.client.post("#{deployment_path}#{INDEX_PATH}", args, headers:)
 
         new(prediction)
       end
@@ -78,7 +80,7 @@ module ReplicateClient
           webhook_events_filter: webhook_events_filter&.map(&:to_s)
         }
 
-        headers = sync ? { "Prefer" => 'wait' } : {}
+        headers = sync ? { "Prefer" => "wait" } : {}
 
         prediction = ReplicateClient.client.post("#{model_path}#{INDEX_PATH}", args, headers:)
 
