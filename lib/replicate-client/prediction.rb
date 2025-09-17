@@ -20,21 +20,23 @@ module ReplicateClient
       # @param webhook_url [String] The URL to send webhook events to.
       # @param webhook_events_filter [Array<Symbol>] The events to send to the webhook.
       # @param sync [Boolean] Whether to wait for the prediction to complete.
+      # @param client [ReplicateClient::Client] The client to use for the prediction.
       #
       # @return [ReplicateClient::Prediction]
-      def create!(version:, input:, webhook_url: nil, webhook_events_filter: nil, sync: false)
+      def create!(version:, input:, webhook_url: nil, webhook_events_filter: nil, sync: false,
+                  client: ReplicateClient.client)
         args = {
           version: version.is_a?(Model::Version) ? version.id : version,
           input: input,
-          webhook: webhook_url || ReplicateClient.configuration.webhook_url,
+          webhook: webhook_url || client.configuration.webhook_url,
           webhook_events_filter: webhook_events_filter&.map(&:to_s)
         }
 
         headers = sync ? { "Prefer" => "wait" } : {}
 
-        prediction = ReplicateClient.client.post(INDEX_PATH, args, headers:)
+        prediction = client.post(INDEX_PATH, args, headers:)
 
-        new(prediction)
+        new(prediction, client: client)
       end
 
       # Create a new prediction for a deployment.
@@ -44,12 +46,14 @@ module ReplicateClient
       # @param webhook_url [String] The URL to send webhook events to.
       # @param webhook_events_filter [Array<Symbol>] The events to send to the webhook.
       # @param sync [Boolean] Whether to wait for the prediction to complete.
+      # @param client [ReplicateClient::Client] The client to use for the prediction.
       #
       # @return [ReplicateClient::Prediction]
-      def create_for_deployment!(deployment:, input:, webhook_url: nil, webhook_events_filter: nil, sync: false)
+      def create_for_deployment!(deployment:, input:, webhook_url: nil, webhook_events_filter: nil, sync: false,
+                                 client: ReplicateClient.client)
         args = {
           input: input,
-          webhook: webhook_url || ReplicateClient.configuration.webhook_url,
+          webhook: webhook_url || client.configuration.webhook_url,
           webhook_events_filter: webhook_events_filter&.map(&:to_s)
         }
 
@@ -57,9 +61,9 @@ module ReplicateClient
 
         deployment_path = deployment.is_a?(Deployment) ? deployment.path : "#{Deployment::INDEX_PATH}/#{deployment}"
 
-        prediction = ReplicateClient.client.post("#{deployment_path}#{INDEX_PATH}", args, headers:)
+        prediction = client.post("#{deployment_path}#{INDEX_PATH}", args, headers:)
 
-        new(prediction)
+        new(prediction, client: client)
       end
 
       # Create a new prediction for a model.
@@ -69,50 +73,55 @@ module ReplicateClient
       # @param webhook_url [String] The URL to send webhook events to.
       # @param webhook_events_filter [Array<Symbol>] The events to send to the webhook.
       # @param sync [Boolean] Whether to wait for the prediction to complete.
+      # @param client [ReplicateClient::Client] The client to use for the prediction.
       #
       # @return [ReplicateClient::Prediction]
-      def create_for_official_model!(model:, input:, webhook_url: nil, webhook_events_filter: nil, sync: false)
+      def create_for_official_model!(model:, input:, webhook_url: nil, webhook_events_filter: nil, sync: false,
+                                     client: ReplicateClient.client)
         model_path = model.is_a?(Model) ? model.path : Model.build_path(**Model.parse_model_name(model))
 
         args = {
           input: input,
-          webhook: webhook_url || ReplicateClient.configuration.webhook_url,
+          webhook: webhook_url || client.configuration.webhook_url,
           webhook_events_filter: webhook_events_filter&.map(&:to_s)
         }
 
         headers = sync ? { "Prefer" => "wait" } : {}
 
-        prediction = ReplicateClient.client.post("#{model_path}#{INDEX_PATH}", args, headers:)
+        prediction = client.post("#{model_path}#{INDEX_PATH}", args, headers:)
 
-        new(prediction)
+        new(prediction, client: client)
       end
 
       # Find a prediction.
       #
       # @param id [String] The ID of the prediction.
+      # @param client [ReplicateClient::Client] The client to use for the prediction.
       #
       # @return [ReplicateClient::Prediction]
-      def find(id)
-        attributes = ReplicateClient.client.get(build_path(id))
-        new(attributes)
+      def find(id, client: ReplicateClient.client)
+        attributes = client.get(build_path(id))
+        new(attributes, client: client)
       end
 
       # Find a prediction.
       #
       # @param id [String] The ID of the prediction.
+      # @param client [ReplicateClient::Client] The client to use for the prediction.
       #
       # @return [ReplicateClient::Prediction]
-      def find_by!(id:)
-        find(id)
+      def find_by!(id:, client: ReplicateClient.client)
+        find(id, client: client)
       end
 
       # Find a prediction.
       #
       # @param id [String] The ID of the prediction.
+      # @param client [ReplicateClient::Client] The client to use for the prediction.
       #
       # @return [ReplicateClient::Prediction]
-      def find_by(id:)
-        find_by!(id: id)
+      def find_by(id:, client: ReplicateClient.client)
+        find_by!(id: id, client: client)
       rescue ReplicateClient::NotFoundError
         nil
       end
@@ -129,10 +138,11 @@ module ReplicateClient
       # Cancel a prediction.
       #
       # @param id [String] The ID of the prediction.
+      # @param client [ReplicateClient::Client] The client to use for the prediction.
       #
       # @return [void]
-      def cancel!(id)
-        ReplicateClient.client.post("#{build_path(id)}/cancel")
+      def cancel!(id, client: ReplicateClient.client)
+        client.post("#{build_path(id)}/cancel")
       end
     end
 
@@ -206,7 +216,13 @@ module ReplicateClient
     # @return [String]
     attr_accessor :logs
 
-    def initialize(attributes)
+    # The client for the prediction.
+    #
+    # @return [ReplicateClient::Client]
+    attr_accessor :client
+
+    def initialize(attributes, client: ReplicateClient.client)
+      @client = client
       reset_attributes(attributes)
     end
 
@@ -214,7 +230,7 @@ module ReplicateClient
     #
     # @return [ReplicateClient::Prediction]
     def reload!
-      attributes = ReplicateClient.client.get(Prediction.build_path(@id))
+      attributes = @client.get(Prediction.build_path(@id))
       reset_attributes(attributes)
     end
 
@@ -236,7 +252,7 @@ module ReplicateClient
     #
     # @return [void]
     def cancel!
-      Prediction.cancel!(id)
+      Prediction.cancel!(id, client: @client)
     end
 
     # Check if the prediction is succeeded.

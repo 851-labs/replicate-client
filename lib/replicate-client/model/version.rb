@@ -11,12 +11,13 @@ module ReplicateClient
         # @param owner [String] The owner of the model.
         # @param name [String] The name of the model.
         # @param version_id [String] The version id of the model.
+        # @param client [ReplicateClient::Client] The client to use for requests.
         #
         # @return [ReplicateClient::Model::Version]
-        def find_by!(owner:, name:, version_id:)
+        def find_by!(owner:, name:, version_id:, client: ReplicateClient.client)
           path = build_path(owner: owner, name: name, version_id: version_id)
-          response = ReplicateClient.client.get(path)
-          new(response)
+          response = client.get(path)
+          new(response, client: client)
         end
 
         # Find a version of a model.
@@ -24,10 +25,11 @@ module ReplicateClient
         # @param owner [String] The owner of the model.
         # @param name [String] The name of the model.
         # @param version_id [String] The version id of the model.
+        # @param client [ReplicateClient::Client] The client to use for requests.
         #
         # @return [ReplicateClient::Model::Version]
-        def find_by(owner:, name:, version_id:)
-          find_by!(owner: owner, name: name, version_id: version_id)
+        def find_by(owner:, name:, version_id:, client: ReplicateClient.client)
+          find_by!(owner: owner, name: name, version_id: version_id, client: client)
         rescue ReplicateClient::NotFoundError
           nil
         end
@@ -36,12 +38,13 @@ module ReplicateClient
         #
         # @param owner [String] The owner of the model.
         # @param name [String] The name of the model.
+        # @param client [ReplicateClient::Client] The client to use for requests.
         #
         # @return [Array<ReplicateClient::Model::Version>]
-        def where(owner:, name:)
+        def where(owner:, name:, client: ReplicateClient.client)
           versions = []
 
-          auto_paging_each(owner: owner, name: name) do |version|
+          auto_paging_each(owner: owner, name: name, client: client) do |version|
             versions << version
           end
 
@@ -52,18 +55,19 @@ module ReplicateClient
         #
         # @param name [String] The name of the model.
         # @param owner [String] The owner of the model.
+        # @param client [ReplicateClient::Client] The client to use for requests.
         # @yield [ReplicateClient::Model] Yields a model.
         #
         # @return [void]
-        def auto_paging_each(owner:, name:, &block)
+        def auto_paging_each(owner:, name:, client: ReplicateClient.client, &block)
           cursor = nil
           model_path = Model.build_path(owner: owner, name: name)
 
           loop do
             url_params = cursor ? "?cursor=#{cursor}" : ""
-            attributes = ReplicateClient.client.get("#{model_path}#{INDEX_PATH}#{url_params}")
+            attributes = client.get("#{model_path}#{INDEX_PATH}#{url_params}")
 
-            versions = attributes["results"].map { |version| new(version) }
+            versions = attributes["results"].map { |version| new(version, client: client) }
 
             versions.each(&block)
 
@@ -105,7 +109,13 @@ module ReplicateClient
       # @return [Hash]
       attr_accessor :openapi_schema
 
-      def initialize(attributes)
+      # The client used to make API requests for this model version.
+      #
+      # @return [ReplicateClient::Client]
+      attr_accessor :client
+
+      def initialize(attributes, client: ReplicateClient.client)
+        @client = client
         @id = attributes["id"]
         @created_at = Time.parse(attributes["created_at"])
         @cog_version = attributes["cog_version"]
@@ -124,7 +134,8 @@ module ReplicateClient
           version: self,
           input: input,
           webhook_url: webhook_url,
-          webhook_events_filter: webhook_events_filter
+          webhook_events_filter: webhook_events_filter,
+          client: @client
         )
       end
 

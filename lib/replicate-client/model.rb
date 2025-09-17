@@ -16,12 +16,13 @@ module ReplicateClient
       #
       # @param owner [String] The owner of the model.
       # @param name [String] The name of the model.
+      # @param client [ReplicateClient::Client] The client to use for requests.
       #
       # @return [ReplicateClient::Model]
-      def find_by!(owner:, name:, version_id: nil)
+      def find_by!(owner:, name:, version_id: nil, client: ReplicateClient.client)
         path = build_path(owner: owner, name: name)
-        response = ReplicateClient.client.get(path)
-        new(response, version_id: version_id)
+        response = client.get(path)
+        new(response, version_id: version_id, client: client)
       end
 
       # Find a model.
@@ -29,10 +30,11 @@ module ReplicateClient
       # @param owner [String] The owner of the model.
       # @param name [String] The name of the model.
       # @param version_id [String] The version id of the model to use.
+      # @param client [ReplicateClient::Client] The client to use for requests.
       #
       # @return [ReplicateClient::Model]
-      def find_by(owner:, name:, version_id: nil)
-        find_by!(owner: owner, name: name, version_id: version_id)
+      def find_by(owner:, name:, version_id: nil, client: ReplicateClient.client)
+        find_by!(owner: owner, name: name, version_id: version_id, client: client)
       rescue ReplicateClient::NotFoundError
         nil
       end
@@ -42,10 +44,11 @@ module ReplicateClient
       #
       # @param name [String] The name of the model.
       # @param version_id [String] The version id of the model to use.
+      # @param client [ReplicateClient::Client] The client to use for requests.
       #
       # @return [ReplicateClient::Model]
-      def find(name, version_id: nil)
-        find_by!(**parse_model_name(name), version_id: version_id)
+      def find(name, version_id: nil, client: ReplicateClient.client)
+        find_by!(**parse_model_name(name), version_id: version_id, client: client)
       end
 
       # Build the path for the model.
@@ -60,17 +63,19 @@ module ReplicateClient
 
       # Paginate through all models.
       #
+      # @param client [ReplicateClient::Client] The client to use for requests.
+      #
       # @yield [ReplicateClient::Model] Yields a model.
       #
       # @return [void]
-      def auto_paging_each(&block)
+      def auto_paging_each(client: ReplicateClient.client, &block)
         cursor = nil
 
         loop do
           url_params = cursor ? "?cursor=#{cursor}" : ""
-          attributes = ReplicateClient.client.get("#{INDEX_PATH}#{url_params}")
+          attributes = client.get("#{INDEX_PATH}#{url_params}")
 
-          models = attributes["results"].map { |model| new(model) }
+          models = attributes["results"].map { |model| new(model, client: client) }
 
           models.each(&block)
 
@@ -90,6 +95,7 @@ module ReplicateClient
       # @param paper_url [String, nil] A URL for the model’s paper.
       # @param license_url [String, nil] A URL for the model’s license.
       # @param cover_image_url [String, nil] A URL for the model’s cover image.
+      # @param client [ReplicateClient::Client] The client to use for requests.
       #
       # @return [ReplicateClient::Model]
       def create!(
@@ -101,7 +107,8 @@ module ReplicateClient
         github_url: nil,
         paper_url: nil,
         license_url: nil,
-        cover_image_url: nil
+        cover_image_url: nil,
+        client: ReplicateClient.client
       )
         new_attributes = {
           owner: owner,
@@ -115,9 +122,9 @@ module ReplicateClient
           cover_image_url: cover_image_url
         }
 
-        attributes = ReplicateClient.client.post("/models", new_attributes)
+        attributes = client.post("/models", new_attributes)
 
-        new(attributes)
+        new(attributes, client: client)
       end
 
       # Parse the model name.
@@ -201,13 +208,20 @@ module ReplicateClient
     # @return [Hash]
     attr_accessor :latest_version_id
 
+    # The client used to make API requests for this model.
+    #
+    # @return [ReplicateClient::Client]
+    attr_accessor :client
+
     # Initialize a new model.
     #
     # @param attributes [Hash] The attributes of the model.
     # @param version_id [String] The version of the model to use.
+    # @param client [ReplicateClient::Client] The client to use for requests.
     #
     # @return [ReplicateClient::Model]
-    def initialize(attributes, version_id: nil)
+    def initialize(attributes, version_id: nil, client: ReplicateClient.client)
+      @client = client
       reset_attributes(attributes, version_id: version_id)
     end
 
@@ -222,7 +236,7 @@ module ReplicateClient
     #
     # @return [void]
     def destroy!
-      ReplicateClient.client.delete(path)
+      @client.delete(path)
     end
 
     # The path of the current version.
@@ -236,21 +250,21 @@ module ReplicateClient
     #
     # @return [ReplicateClient::Model::Version]
     def version
-      @version ||= Version.find_by!(owner: owner, name: name, version_id: version_id)
+      @version ||= Version.find_by!(owner: owner, name: name, version_id: version_id, client: @client)
     end
 
     # The latest version of the model.
     #
     # @return [ReplicateClient::Model::Version]
     def latest_version
-      @latest_version ||= Version.find_by!(owner: owner, name: name, version_id: latest_version_id)
+      @latest_version ||= Version.find_by!(owner: owner, name: name, version_id: latest_version_id, client: @client)
     end
 
     # The versions of the model.
     #
     # @return [Array<ReplicateClient::Model::Version>]
     def versions
-      @versions ||= Version.where(owner: owner, name: name)
+      @versions ||= Version.where(owner: owner, name: name, client: @client)
     end
 
     # Create a new prediction for the model.
@@ -264,14 +278,16 @@ module ReplicateClient
           model: self,
           input: input,
           webhook_url: webhook_url,
-          webhook_events_filter: webhook_events_filter
+          webhook_events_filter: webhook_events_filter,
+          client: @client
         )
       else
         Prediction.create!(
           version: version_id,
           input: input,
           webhook_url: webhook_url,
-          webhook_events_filter: webhook_events_filter
+          webhook_events_filter: webhook_events_filter,
+          client: @client
         )
       end
     end
@@ -280,7 +296,7 @@ module ReplicateClient
     #
     # @return [void]
     def reload!
-      attributes = ReplicateClient.client.get(path)
+      attributes = @client.get(path)
       reset_attributes(attributes, version_id: version_id)
     end
 

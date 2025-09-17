@@ -2,6 +2,11 @@
 
 module ReplicateClient
   class Client
+    # The configuration for the client.
+    #
+    # @return [ReplicateClient::Configuration]
+    attr_accessor :configuration
+
     # Initialize the client.
     #
     # @param configuration [ReplicateClient::Configuration] The configuration for the client.

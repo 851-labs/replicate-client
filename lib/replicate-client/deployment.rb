@@ -7,17 +7,19 @@ module ReplicateClient
     class << self
       # List all deployments.
       #
+      # @param client [ReplicateClient::Client] The client to use for requests.
+      #
       # @yield [ReplicateClient::Deployment] Yields a deployment.
       #
       # @return [void]
-      def auto_paging_each(&block)
+      def auto_paging_each(client: ReplicateClient.client, &block)
         cursor = nil
 
         loop do
           url_params = cursor ? "?cursor=#{cursor}" : ""
-          attributes = ReplicateClient.client.get("#{INDEX_PATH}#{url_params}")
+          attributes = client.get("#{INDEX_PATH}#{url_params}")
 
-          deployments = attributes["results"].map { |deployment| new(deployment) }
+          deployments = attributes["results"].map { |deployment| new(deployment, client: client) }
 
           deployments.each(&block)
 
@@ -34,9 +36,11 @@ module ReplicateClient
       # @param hardware [ReplicateClient::Hardware, String] The hardware SKU.
       # @param min_instances [Integer] The minimum number of instances.
       # @param max_instances [Integer] The maximum number of instances.
+      # @param client [ReplicateClient::Client] The client to use for requests.
       #
       # @return [ReplicateClient::Deployment]
-      def create!(name:, model:, hardware:, min_instances:, max_instances:, version_id: nil)
+      def create!(name:, model:, hardware:, min_instances:, max_instances:, version_id: nil,
+                  client: ReplicateClient.client)
         model_full_name = model.is_a?(Model) ? model.full_name : model
         hardware_sku = hardware.is_a?(Hardware) ? hardware.sku : hardware
         version = if version_id
@@ -44,7 +48,7 @@ module ReplicateClient
                   elsif model.is_a?(Model)
                     model.version_id
                   else
-                    Model.find(model).latest_version.id
+                    Model.find(model, client: client).latest_version.id
                   end
 
         body = {
@@ -56,41 +60,44 @@ module ReplicateClient
           max_instances: max_instances
         }
 
-        attributes = ReplicateClient.client.post(INDEX_PATH, body)
-        new(attributes)
+        attributes = client.post(INDEX_PATH, body)
+        new(attributes, client: client)
       end
 
       # Find a deployment by owner and name.
       #
       # @param full_name [String] The full name of the deployment in "owner/name" format.
+      # @param client [ReplicateClient::Client] The client to use for requests.
       #
       # @return [ReplicateClient::Deployment]
-      def find(full_name)
+      def find(full_name, client: ReplicateClient.client)
         path = build_path(**parse_full_name(full_name))
-        attributes = ReplicateClient.client.get(path)
-        new(attributes)
+        attributes = client.get(path)
+        new(attributes, client: client)
       end
 
       # Find a deployment by owner and name.
       #
       # @param owner [String] The owner of the deployment.
       # @param name [String] The name of the deployment.
+      # @param client [ReplicateClient::Client] The client to use for requests.
       #
       # @return [ReplicateClient::Deployment]
-      def find_by!(owner:, name:)
+      def find_by!(owner:, name:, client: ReplicateClient.client)
         path = build_path(owner: owner, name: name)
-        attributes = ReplicateClient.client.get(path)
-        new(attributes)
+        attributes = client.get(path)
+        new(attributes, client: client)
       end
 
       # Find a deployment by owner and name.
       #
       # @param owner [String] The owner of the deployment.
       # @param name [String] The name of the deployment.
+      # @param client [ReplicateClient::Client] The client to use for requests.
       #
       # @return [ReplicateClient::Deployment, nil]
-      def find_by(owner:, name:)
-        find_by!(owner: owner, name: name)
+      def find_by(owner:, name:, client: ReplicateClient.client)
+        find_by!(owner: owner, name: name, client: client)
       rescue ReplicateClient::NotFoundError
         nil
       end
@@ -99,11 +106,12 @@ module ReplicateClient
       #
       # @param owner [String] The owner of the deployment.
       # @param name [String] The name of the deployment.
+      # @param client [ReplicateClient::Client] The client to use for requests.
       #
       # @return [void]
-      def destroy!(owner:, name:)
+      def destroy!(owner:, name:, client: ReplicateClient.client)
         path = build_path(owner: owner, name: name)
-        ReplicateClient.client.delete(path)
+        client.delete(path)
       end
 
       # Build the path for a specific deployment.
@@ -130,12 +138,19 @@ module ReplicateClient
     # Attributes for deployment.
     attr_accessor :owner, :name, :current_release
 
+    # The client used to make API requests for this deployment.
+    #
+    # @return [ReplicateClient::Client]
+    attr_accessor :client
+
     # Initialize a new deployment instance.
     #
     # @param attributes [Hash] The attributes of the deployment.
+    # @param client [ReplicateClient::Client] The client to use for requests.
     #
     # @return [ReplicateClient::Deployment]
-    def initialize(attributes)
+    def initialize(attributes, client: ReplicateClient.client)
+      @client = client
       reset_attributes(attributes)
     end
 
@@ -143,7 +158,7 @@ module ReplicateClient
     #
     # @return [void]
     def destroy!
-      self.class.destroy!(owner: owner, name: name)
+      self.class.destroy!(owner: owner, name: name, client: @client)
     end
 
     # Update the deployment.
@@ -155,8 +170,8 @@ module ReplicateClient
     #
     # @return [void]
     def update!(hardware: nil, min_instances: nil, max_instances: nil, version: nil)
-      version_id = version.is_a?(Version) ? version.id : version
-      path = build_path(owner: owner, name: name)
+      version_id = version.is_a?(ReplicateClient::Model::Version) ? version.id : version
+      path = self.class.build_path(owner: owner, name: name)
       body = {
         hardware: hardware,
         min_instances: min_instances,
@@ -164,7 +179,7 @@ module ReplicateClient
         version: version_id
       }.compact
 
-      attributes = ReplicateClient.client.patch(path, body)
+      attributes = @client.patch(path, body)
       reset_attributes(attributes)
     end
 
@@ -172,7 +187,7 @@ module ReplicateClient
     #
     # @return [void]
     def reload!
-      attributes = ReplicateClient.client.get(path)
+      attributes = @client.get(path)
       reset_attributes(attributes)
     end
 
@@ -195,7 +210,8 @@ module ReplicateClient
         deployment: self,
         input: input,
         webhook_url: webhook_url,
-        webhook_events_filter: webhook_events_filter
+        webhook_events_filter: webhook_events_filter,
+        client: @client
       )
     end
 

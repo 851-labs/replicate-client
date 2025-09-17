@@ -15,17 +15,19 @@ module ReplicateClient
     class << self
       # List all trainings.
       #
+      # @param client [ReplicateClient::Client] The client to use for requests.
+      #
       # @yield [ReplicateClient::Training] Yields a training.
       #
       # @return [void]
-      def auto_paging_each(&block)
+      def auto_paging_each(client: ReplicateClient.client, &block)
         cursor = nil
 
         loop do
           url_params = cursor ? "?cursor=#{cursor}" : ""
-          attributes = ReplicateClient.client.get("#{INDEX_PATH}#{url_params}")
+          attributes = client.get("#{INDEX_PATH}#{url_params}")
 
-          trainings = attributes["results"].map { |training| new(training) }
+          trainings = attributes["results"].map { |training| new(training, client: client) }
 
           trainings.each(&block)
 
@@ -44,9 +46,11 @@ module ReplicateClient
       # @param input [Hash] The input data for the training.
       # @param webhook_url [String, nil] A URL to receive webhook notifications.
       # @param webhook_events_filter [Array, nil] The events to trigger webhook requests.
+      # @param client [ReplicateClient::Client] The client to use for requests.
       #
       # @return [ReplicateClient::Training]
-      def create!(owner:, name:, version:, destination:, input:, webhook_url: nil, webhook_events_filter: nil)
+      def create!(owner:, name:, version:, destination:, input:, webhook_url: nil, webhook_events_filter: nil,
+                  client: ReplicateClient.client)
         destination_str = destination.is_a?(ReplicateClient::Model) ? destination.full_name : destination
         version_id = version.is_a?(ReplicateClient::Model::Version) ? version.id : version
 
@@ -54,12 +58,12 @@ module ReplicateClient
         body = {
           destination: destination_str,
           input: input,
-          webhook: webhook_url || ReplicateClient.configuration.webhook_url,
+          webhook: webhook_url || client.configuration.webhook_url,
           webhook_events_filter: webhook_events_filter
         }
 
-        attributes = ReplicateClient.client.post(path, body)
-        new(attributes)
+        attributes = client.post(path, body)
+        new(attributes, client: client)
       end
 
       # Create a new training for a specific model.
@@ -69,10 +73,17 @@ module ReplicateClient
       # @param input [Hash] The input data for the training.
       # @param webhook_url [String, nil] A URL to receive webhook notifications.
       # @param webhook_events_filter [Array, nil] The events to trigger webhook requests.
+      # @param client [ReplicateClient::Client] The client to use for requests.
       #
       # @return [ReplicateClient::Training]
-      def create_for_model!(model:, destination:, input:, webhook_url: nil, webhook_events_filter: nil)
-        model_instance = model.is_a?(ReplicateClient::Model) ? model : ReplicateClient::Model.find(model)
+      def create_for_model!(model:, destination:, input:, webhook_url: nil, webhook_events_filter: nil,
+                            client: ReplicateClient.client)
+        model_instance = if model.is_a?(ReplicateClient::Model)
+                           model
+                         else
+                           ReplicateClient::Model.find(model,
+                                                       client: client)
+                         end
         raise ArgumentError, "Invalid model" unless model_instance
 
         create!(
@@ -81,30 +92,33 @@ module ReplicateClient
           version: model_instance.version_id,
           destination: destination,
           input: input,
-          webhook_url: webhook_url || ReplicateClient.configuration.webhook_url,
-          webhook_events_filter: webhook_events_filter
+          webhook_url: webhook_url || client.configuration.webhook_url,
+          webhook_events_filter: webhook_events_filter,
+          client: client
         )
       end
 
       # Find a training by id.
       #
       # @param id [String] The id of the training.
+      # @param client [ReplicateClient::Client] The client to use for requests.
       #
       # @return [ReplicateClient::Training]
-      def find(id)
+      def find(id, client: ReplicateClient.client)
         path = build_path(id: id)
-        attributes = ReplicateClient.client.get(path)
-        new(attributes)
+        attributes = client.get(path)
+        new(attributes, client: client)
       end
 
       # Cancel a training.
       #
       # @param id [String] The id of the training.
+      # @param client [ReplicateClient::Client] The client to use for requests.
       #
       # @return [void]
-      def cancel!(id)
+      def cancel!(id, client: ReplicateClient.client)
         path = "#{build_path(id: id)}/cancel"
-        ReplicateClient.client.post(path)
+        client.post(path, {})
       end
 
       # Build the path for a specific training.
@@ -183,12 +197,19 @@ module ReplicateClient
     # @return [Hash, nil]
     attr_accessor :metrics
 
+    # The client used to make API requests for this training.
+    #
+    # @return [ReplicateClient::Client]
+    attr_accessor :client
+
     # Initialize a new training instance.
     #
     # @param attributes [Hash] The attributes of the training.
+    # @param client [ReplicateClient::Client] The client to use for requests.
     #
     # @return [ReplicateClient::Training]
-    def initialize(attributes)
+    def initialize(attributes, client: ReplicateClient.client)
+      @client = client
       reset_attributes(attributes)
     end
 
@@ -231,14 +252,14 @@ module ReplicateClient
     #
     # @return [void]
     def cancel!
-      ReplicateClient::Training.cancel!(id)
+      ReplicateClient::Training.cancel!(id, client: @client)
     end
 
     # Reload the training.
     #
     # @return [void]
     def reload!
-      attributes = ReplicateClient.client.get(Training.build_path(id: id))
+      attributes = @client.get(Training.build_path(id: id))
       reset_attributes(attributes)
     end
 
@@ -246,7 +267,7 @@ module ReplicateClient
     #
     # @return [ReplicateClient::Model]
     def model
-      @model ||= ReplicateClient::Model.find(model_full_name, version_id: version_id)
+      @model ||= ReplicateClient::Model.find(model_full_name, version_id: version_id, client: @client)
     end
 
     # The version instance of the training.

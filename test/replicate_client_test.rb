@@ -2,7 +2,7 @@
 
 require "test_helper"
 
-class TestReplicate < Minitest::Test
+class ReplicateClientTest < Minitest::Test
   def test_that_it_has_a_version_number
     refute_nil ::ReplicateClient::VERSION
   end
